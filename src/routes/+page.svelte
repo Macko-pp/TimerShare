@@ -30,6 +30,14 @@
 		});
 	}
 
+	function sync() {
+		emitEvent('sync', {
+			startSystemTime: stopwatch.startSystemTime,
+			stopSystemTime: stopwatch.stopSystemTime,
+			stopDuration: stopwatch.stopDuration
+		});
+	}
+
 	onMount(() => {
 		const url = new URL(window.location.href);
 		try {
@@ -56,6 +64,7 @@
 
 		if (emit) {
 			emitEvent('start');
+			sync();
 		}
 	}
 
@@ -64,6 +73,7 @@
 
 		if (emit) {
 			emitEvent('stop');
+			sync();
 		}
 	}
 
@@ -74,14 +84,6 @@
 			emitEvent('reset');
 		}
 	}
-
-	// function sync() {
-	// 	emitEvent('sync', {
-	// 		startSystemTime: stopwatch.startSystemTime,
-	// 		stopSystemTime: stopwatch.stopSystemTime,
-	// 		stopDuration: stopwatch.stopDuration
-	// 	});
-	// }
 
 	function share() {
 		const link = window.location.href;
@@ -134,11 +136,7 @@
 			}
 
 			if (message.event == 'join') {
-				emitEvent('sync', {
-					startSystemTime: stopwatch.startSystemTime,
-					stopSystemTime: stopwatch.stopSystemTime,
-					stopDuration: stopwatch.stopDuration
-				});
+				sync();
 			}
 		}
 	});
