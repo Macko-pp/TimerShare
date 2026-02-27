@@ -1,11 +1,15 @@
 <script lang="ts">
+	// Client-side timer app: handles UI state, networking, and actions with shared sessions
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
 	import { Confetti } from 'svelte-confetti';
-	let confetti = $state(false);
+	let confetti = $state(false); // whether to show celebratory confetti
 	function toggleConfetti() {
 		confetti = !confetti;
+		setTimeout(() => {
+			confetti = !confetti;
+		}, 2000);
 	}
 
 	import { io } from 'socket.io-client';
@@ -24,6 +28,9 @@
 	let actions: any = $state([]);
 
 	function emitEvent(event: string, data: any = null) {
+		// Send an event type and optional payload to the server, tagged with local session IDs
+		// event: action type ('start'|'stop'|'reset'|'sync'|'join')
+		// data: optional metadata to help other clients sync
 		socket.emit('eventFromClient', {
 			event,
 			id,
@@ -33,6 +40,7 @@
 	}
 
 	function sync() {
+		// Request or broadcast the current timer state so other clients can align
 		emitEvent('sync', {
 			startSystemTime: stopwatch.startSystemTime,
 			stopSystemTime: stopwatch.stopSystemTime,
@@ -43,10 +51,12 @@
 	onMount(() => {
 		const url = new URL(window.location.href);
 		try {
+			// If the URL already contains an id, use it to join the same session
 			if (url.searchParams.has('id')) {
 				id = url.searchParams.get('id')!;
 			} else {
 				id = uuidv4();
+				// Attach a new id to the URL so others can join this session
 				url.searchParams.set('id', id);
 				goto(url.toString(), { replaceState: true });
 			}
@@ -54,16 +64,20 @@
 			console.error('Could not update URL with uuid', err);
 		}
 
+		// Announce presence to other clients in the session
 		emitEvent('join');
 	});
 
 	function start(emit: boolean = false, recordAction: boolean = true) {
+		// Start the stopwatch and refresh displayed time/state frequently
 		stopwatch.start();
+		// Continuously update UI with elapsed time and internal state
 		setInterval(() => {
 			timeElapsed = stopwatch.getTime();
 			stopwatchState = stopwatch.getState();
 		}, 10);
 
+		// Optionally record this action in the local action log
 		if (recordAction) {
 			actions.unshift([
 				'Start',
@@ -76,6 +90,7 @@
 			]);
 		}
 
+		// If requested, broadcast a start event and synchronize with others
 		if (emit) {
 			emitEvent('start');
 			sync();
@@ -83,6 +98,7 @@
 	}
 
 	function stop(emit: boolean = false) {
+		// Pause the stopwatch and log stop action with timestamp/duration
 		stopwatch.stop();
 
 		actions.unshift([
@@ -91,6 +107,7 @@
 			formatTime(stopwatch.slice().duration)
 		]);
 
+		// If requested, broadcast stop and synchronize
 		if (emit) {
 			emitEvent('stop');
 			sync();
@@ -98,6 +115,7 @@
 	}
 
 	function reset(emit: boolean = false) {
+		// Reset the stopwatch and log reset action
 		stopwatch.reset();
 
 		actions.unshift([
@@ -106,20 +124,23 @@
 			'-'
 		]);
 
+		// If requested, broadcast reset to other clients
 		if (emit) {
 			emitEvent('reset');
 		}
 	}
 
 	function share() {
+		// Copy the current session link so others can join this timer
 		const link = window.location.href;
 		navigator.clipboard.writeText(link).then(() => {
+			// Show celebratory confetti after copying
 			toggleConfetti();
 		});
 	}
 
-	socket.on('eventFromServer', (message) => {
-		// console.log('Received from server:', message);
+	socket.on('eventFromServer', (message: any) => {
+		// Received messages from server; apply to local timer if IDs match
 		if (message.id == id && message.uuid != uuid) {
 			if (message.event == 'start') {
 				start(false);
@@ -168,6 +189,7 @@
 	});
 
 	function formatTime(ms: number) {
+		// Convert duration in ms to MM:SS:CS format for display
 		const totalSeconds = Math.floor(ms / 1000);
 		const mins = Math.floor(totalSeconds / 60);
 		const secs = totalSeconds % 60;
